@@ -1,0 +1,394 @@
+---
+title: "Final Project 615"
+author: "Yaqi Huang"
+date: "2017/12/16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Introduction
+
+The topic I have chosen for the final project is about a game which I have been playing recently, which is called $Pokémon Ultra Moon$. The publisher "The Pokémon Company" always launch two versions of game when the new game is released, for example, in this case would be $Pokémon Ultra Moon$ and $Pokémon Ultra Sun$. They provide different legendary pokémon for different versions. The version I purchased was Pokémon Ultra Moon. For thie project, I am interested in the followings:
+
+- what is the overall response of this new game from the players using twitter.
+
+- Is there any difference in comments between $Pokémon Ultra Moon$ and $Pokémon Ultra Sun$.
+
+- Is there any of the difference corresponds to the region?
+
+To answer the above, I have conducted the following technics:
+
+- Sentimemt Analysis
+
+- Wordcloud
+
+- Mapping
+
+
+```{r}
+
+# Load Packages
+
+pacman::p_load(
+devtools,
+twitteR,
+streamR,
+ROAuth,
+reshape,
+dplyr,
+ggplot2,
+splitstackshape,
+stringr,
+tm,
+wordcloud,
+plotly,
+grid, 
+tidytext,
+tidyverse,
+tidyr,
+reshape2,
+RColorBrewer,
+ROAuth,
+RCurl)
+
+```
+
+
+```{r}
+
+# Twitter Setup
+
+api_key <- 	"MO3op0wlLQ25Qpa1gP4E1P1uM"
+api_secret <- "61hRn8O7Pl5TqMFihUeL7gh8eDDdg2qklyiZchI942nPzq0L7A"
+access_token <- "938505878180913154-UXztGvRJQuYrqxIyCkdoJNOjyBe1Mv4"
+access_token_secret <- "B2N4hN63ZBm7PK24TMkaKdywEldqZBqxS8JWD7uZPuq9S"
+
+setup_twitter_oauth(api_key, 
+                    api_secret, 
+                    access_token, 
+                    access_token_secret)
+```
+
+
+```{r}
+  
+
+#requestURL <- "https://api.twitter.com/oauth/request_token"
+#accessURL <- "https://api.twitter.com/oauth/access_token"
+#authURL <- "https://api.twitter.com/oauth/authorize"
+#consumerKey <-  "LFNRqX5i1PkB69SjEEncXWloq"
+#consumerSecret <- "4sDHqY6aLm7PRfJLxpq6GsWqphZxzX3dXLjssSLXYhO8wPwL3F"
+#my_oauth <- OAuthFactory$new(consumerKey = consumerKey, consumerSecret = consumerSecret, requestURL = requestURL, accessURL = accessURL, authURL = authURL)
+#my_oauth$handshake(cainfo = system.file("CurlSSL", "cacert.pem", package = "RCurl"))
+#save(my_oauth, file = "my_oauth.Rdata")
+
+
+```
+
+
+```{r,warning=FALSE}
+
+# Data Cleaning
+
+moon.raw <- searchTwitter("Pokémon Ultra Moon", n = 2000, lang = "en")
+
+sun.raw <- searchTwitter("Pokémon Ultra Sun", n = 2000, lang = "en")
+
+moon <- twListToDF(moon.raw)
+sun <- twListToDF(sun.raw)
+
+moon$text <- iconv(moon$text, from = "latin1", to = "ASCII", sub="")
+moon$text <- gsub('http\\S+\\s*', '', moon$text)
+
+sun$text <- iconv(sun$text, from = "latin1", to = "ASCII", sub="")
+sun$text <- gsub('http\\S+\\s*', '', sun$text)
+
+```
+
+
+
+```{r}
+
+# Write as csv
+
+write.csv(moon,"moon.csv")
+write.csv(sun,"sun.csv")
+
+```
+
+# Sentiment
+
+## Moon
+```{r}
+
+moon$twitteid <- c(1:length(moon$text))
+
+moon$text <- str_replace_all(moon$text,"@","")
+
+moon <- select(moon,twitteid,text)
+
+moon_text <- data.frame(lapply(moon, as.character), stringsAsFactors=FALSE)
+
+moon_text <- moon_text %>%
+  unnest_tokens(word, text)
+
+data(stop_words)
+
+moon_text <- moon_text %>%
+  anti_join(stop_words) 
+
+moon_text %>%
+  count(word, sort = TRUE) 
+
+nrcjoy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+moon_text_sentiment_stat <- moon_text %>%
+  inner_join(nrcjoy) %>%
+  count(word, sort = TRUE)
+
+bing_word_counts_moon <- moon_text %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts_moon
+
+bing_word_counts_moon %>%
+  group_by(sentiment) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(y = "Contribution to sentiment",
+       x = NULL) +
+  coord_flip()
+
+
+```
+
+From the above graphs we could tell that the comments for $Pokémon Ultra Moon$ normally involved positive sentiments. Most of the tweets involves positive feelings. 
+
+
+## Sun
+
+```{r}
+
+sun$twitteid <- c(1:length(sun$text))
+
+sun$text <- str_replace_all(sun$text,"@","")
+
+sun <- select(sun,twitteid,text)
+
+sun_text <- data.frame(lapply(sun, as.character), stringsAsFactors=FALSE)
+
+sun_text <- sun_text %>%
+  unnest_tokens(word, text)
+
+data(stop_words)
+
+sun_text <- sun_text %>%
+  anti_join(stop_words) 
+
+sun_text %>%
+  count(word, sort = TRUE) 
+
+nrcjoy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+sun_text_sentiment_stat <- sun_text %>%
+  inner_join(nrcjoy) %>%
+  count(word, sort = TRUE)
+
+bing_word_counts_sun <- sun_text %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts_sun
+
+bing_word_counts_sun %>%
+  group_by(sentiment) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(y = "Contribution to sentiment",
+       x = NULL) +
+  coord_flip()
+
+```
+
+We could get same conclusion from the sentiment analysis of $Pokémon Ultra Sun$, that more positive comments were generated by the users on twitter.
+
+However, there is a slightly difference in the number of positive and negative between Moon and Sun, that the positive comments for the Moon version might be slightly greater than the Sun version.
+
+
+```{r}
+
+# Save as RDS
+
+saveRDS(bing_word_counts_moon,"bing_word_counts_moon.rds")
+
+saveRDS(bing_word_counts_sun,"bing_word_counts_sun.rds")
+
+```
+
+
+# Wordcloud
+
+## Moon
+
+```{r}
+
+moon_text %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+moon_text %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("#F8766D", "#00BFC4"),
+                   max.words = 100,title.size=2)
+
+
+```
+
+## Sun
+
+```{r}
+
+sun_text %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+sun_text %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("#F8766D", "#00BFC4"),
+                   max.words = 100,title.size=2)
+
+
+```
+
+From the above two wordcloud plots, we could clearly see that both Moon and Sun version sharing the same comments for both positive and negative sentiments. And the proportion for the top10 most generated word for both postive and negative sentiments for both Moon and Sun versions are pretty similar. For example, the word "Shiny" shares the biggest proportion for both the Moon and Sun on the positive side, and the word "Showdown" shares the biggest proportion for the both versions on the negative sides.
+
+
+```{r}
+
+# Save as RDS
+
+saveRDS(moon_text,"moon_text.rds")
+
+saveRDS(sun_text,"sun_text.rds")
+
+```
+
+
+# Mapping
+
+## Moon
+
+```{r}
+
+load("my_oauth.Rdata")
+
+filterStream("moonmap.json", 
+             track=c("Pokémon Ultra Moon"), 
+             locations = c(-125, 25, -66,50), 
+             timeout=200, oauth=my_oauth)
+moonmap<-parseTweets("moonmap.json", verbose = TRUE)
+ck1 <- sum(moonmap$lat>0, na.rm = TRUE)
+ck2 <- sum(moonmap$place_lat>0, na.rm = TRUE)
+ck3 <- sum(!is.na(moonmap$location))
+map.data <- map_data("state")   
+moonpoints <- data.frame(x = as.numeric(moonmap$lon),  
+                       y = as.numeric(moonmap$lat))
+moonpoints <- moonpoints[moonpoints$y > 25, ]  
+moonpoints<-filter(moonpoints,y>19&y<65,x>(-161.7)&x<(-68.01))
+ggplot(map.data) + 
+  geom_map(aes(map_id = region),  
+           map = map.data,  
+           fill = "white",             
+           color = "grey20", size = 0.25) + 
+  expand_limits(x = map.data$long, y = map.data$lat) +            
+  theme(axis.line = element_blank(),  
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),                     
+        axis.title = element_blank(),  
+        panel.background = element_blank(),  
+        panel.border = element_blank(),                     
+        panel.grid.major = element_blank(), 
+        plot.background = element_blank(),                     
+        plot.margin = unit(0 * c( -1.5, -1.5, -1.5, -1.5), "lines")) +  
+        geom_point(data = moonpoints,             
+        aes(x = x, y = y), size = 1,  
+        alpha = 1/5, color = "pink")  
+
+```
+
+From the map we could tell that for the 2000 data points I generated from twitter, most twittes mentioned $Pokémon Ultra Moon$ were generated from the east of the State. And there are also lots of twittes generated from the west boundary of the landscape.
+
+
+## Sun
+
+```{r}
+
+filterStream("sunmap.json", 
+             track=c("Pokémon Ultra Sun"), 
+             locations = c(-125, 25, -66,50), 
+             timeout=200, oauth=my_oauth)
+sunmap<-parseTweets("sunmap.json", verbose = TRUE)
+ck1.1 <- sum(sunmap$lat>0, na.rm = TRUE)
+ck2.1 <- sum(sunmap$place_lat>0, na.rm = TRUE)
+ck3.1 <- sum(!is.na(sunmap$location))
+map.data <- map_data("state")   
+sunpoints <- data.frame(x = as.numeric(sunmap$lon),  
+                       y = as.numeric(sunmap$lat))
+sunpoints <- sunpoints[sunpoints$y > 25, ]  
+sunpoints<-filter(sunpoints,y>19&y<65,x>(-161.7)&x<(-68.01))
+
+ggplot(map.data) + 
+  geom_map(aes(map_id = region),  
+           map = map.data,  
+           fill = "white",             
+           color = "grey20", size = 0.25) + 
+  expand_limits(x = map.data$long, y = map.data$lat) +            
+  theme(axis.line = element_blank(),  
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),                     
+        axis.title = element_blank(),  
+        panel.background = element_blank(),  
+        panel.border = element_blank(),                     
+        panel.grid.major = element_blank(), 
+        plot.background = element_blank(),                     
+        plot.margin = unit(0 * c( -1.5, -1.5, -1.5, -1.5), "lines")) +  
+        geom_point(data = sunpoints,             
+        aes(x = x, y = y), size = 1,  
+        alpha = 1/5, color = "purple")  
+
+```
+
+We could conclude the similar results from the map above for $Pokémon Ultra Sun$ that most of the twittes were generated from the east of the State, and there are also lots of twittes generated from the west boundary of the landscape.
+
+
+```{r}
+
+# Save as RDS
+
+saveRDS(moonpoints,"moonpoints.rds")
+
+saveRDS(sunpoints,"sunpoints.rds")
+
+```
